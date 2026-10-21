@@ -293,7 +293,11 @@ begin
     p_marks_obtained, p_max_marks, p_percentage, p_grade,
     v_started, now(), p_time_taken_seconds, p_verification_status
   )
-  on conflict (attempt_id) do nothing
+  -- NOTE: the conflict target must be written as a CONSTRAINT name.
+  -- `on conflict (attempt_id)` is rejected by plpgsql with
+  -- SQLSTATE 42702 ("column reference attempt_id is ambiguous") because
+  -- attempt_id is also the RETURNS TABLE output variable of this function.
+  on conflict on constraint exam_records_attempt_id_key do nothing
   returning exam_records.attempt_id, exam_records.certificate_id, false
     into attempt_id, certificate_id, already_registered;
 
@@ -386,7 +390,10 @@ begin
     coalesce(p_started_at, now()), now(), p_time_taken_seconds,
     p_termination_reason, p_security_event_code, 'client_reported'
   )
-  on conflict (attempt_id) do nothing
+  -- Constraint-name conflict target; see the note in submit_exam_record:
+  -- an unqualified (attempt_id) here collides with the OUT variable and
+  -- raises 42702 before the statement can run.
+  on conflict on constraint exam_records_attempt_id_key do nothing
   returning exam_records.attempt_id into attempt_id;
 
   if attempt_id is null then

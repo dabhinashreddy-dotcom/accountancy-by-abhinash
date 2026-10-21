@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="faTitle faDesc" font-family="Segoe UI, system-ui, sans-serif">
+  <title id="faTitle">Structure of Final Accounts</title>
+  <desc id="faDesc">A flow diagram. Trading Account produces Gross Profit or Gross Loss. That result feeds the Profit and Loss Account, which produces Net Profit or Net Loss. The Balance Sheet is a statement of assets and liabilities on a particular date, not an account.</desc>
+  <rect width="720" height="300" fill="#F7F5EF"/>
+  <rect x="30" y="60" width="200" height="90" rx="12" fill="#2B5FA6"/>
+  <text x="130" y="98" fill="#FFFFFF" font-size="18" font-weight="700" text-anchor="middle">Trading A/c</text>
+  <text x="130" y="124" fill="#C7DAF3" font-size="13.5" text-anchor="middle">Gross Profit / Gross Loss</text>
+  <rect x="290" y="60" width="200" height="90" rx="12" fill="#5B4E8C"/>
+  <text x="390" y="98" fill="#FFFFFF" font-size="18" font-weight="700" text-anchor="middle">Profit &amp; Loss A/c</text>
+  <text x="390" y="124" fill="#DCD6F0" font-size="13.5" text-anchor="middle">Net Profit / Net Loss</text>
+  <rect x="550" y="60" width="150" height="90" rx="12" fill="#C9A227"/>
+  <text x="625" y="98" fill="#FFFFFF" font-size="18" font-weight="700" text-anchor="middle">Capital A/c</text>
+  <text x="625" y="124" fill="#F6EBC4" font-size="13.5" text-anchor="middle">owner's fund</text>
+  <path d="M230 105 H290" stroke="#14213D" stroke-width="3" marker-end="url(#ar1)"/>
+  <path d="M490 105 H550" stroke="#14213D" stroke-width="3" marker-end="url(#ar1)"/>
+  <rect x="180" y="196" width="360" height="84" rx="12" fill="#FFFFFF" stroke="#14213D" stroke-width="2.5"/>
+  <text x="360" y="226" fill="#14213D" font-size="18" font-weight="700" text-anchor="middle">Balance Sheet</text>
+  <text x="360" y="252" fill="#6B6478" font-size="13.5" text-anchor="middle">Assets = Liabilities + Capital — a statement, not an account</text>
+  <text x="360" y="272" fill="#6B6478" font-size="13.5" text-anchor="middle">drawn up at a particular date</text>
+  <defs>
+    <marker id="ar1" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#14213D"/>
+    </marker>
+  </defs>
+</svg>

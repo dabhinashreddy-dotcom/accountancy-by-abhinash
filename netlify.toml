@@ -1,0 +1,42 @@
+[build]
+  publish = "."
+  # Regenerates the prerendered route pages, sitemap.xml, robots.txt and
+  # 404.html from seo-config.js at every deploy, so metadata can never go
+  # stale relative to the source of truth. Pure Node, no dependencies.
+  command = "node tools/build-seo-pages.js"
+  # Netlify Functions home (Web Push subscription + delivery endpoints).
+  functions = "netlify/functions"
+
+# Node 22 is pinned for the build AND the functions runtime — the
+# @netlify/blobs client used by the push endpoints requires >= 22.12.
+[build.environment]
+  NODE_VERSION = "22"
+
+# This site is fully static for everything students see: Exam Mode, the
+# AI Tutor, certificates and reminders all run in the browser
+# (app.js + exam-security.js + exam-rules.js using localStorage, with
+# answers from the local knowledge engine). The server-side pieces are
+# the Web Push system (a handful of small Netlify Functions under
+# netlify/functions — subscribe / sync / unsubscribe / test / scheduler —
+# backed by Netlify Blobs, so scheduled reminders reach a device after
+# the site is closed) and exam-access (judges the privileged exam codes,
+# which exist only as environment variables). Secrets (the VAPID private
+# key, the exam unlock codes, the exam admin token) live only in
+# environment variables — see PUSH-NOTIFICATIONS-SETUP.md and
+# docs/ENV-AND-DEPLOYMENT-v89.md.
+
+# The scheduler (netlify/functions/push-scheduler.mjs) runs every 15
+# minutes. Its schedule is declared in the function file itself
+# (export const config = { schedule: "*/15 * * * *" }) — deliberately
+# NOT repeated here, so there is a single source of truth. Netlify cron
+# is evaluated in UTC, and scheduled functions run only on the
+# production deploy.
+
+# No catch-all rewrite: every public route is now a real prerendered
+# directory (e.g. /class-11-accountancy/journal/index.html), so Netlify
+# serves the actual file. Unknown URLs must return a genuine 404 (served
+# by 404.html) instead of silently returning the homepage — a catch-all
+# 200 would create soft-404s and let unrelated paths look canonical.
+# Hash routes (#home, #settings, …) still work: the fragment never
+# reaches the server, and "#" + private views live under whichever
+# public path (usually "/") is already loaded.

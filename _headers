@@ -1,0 +1,25 @@
+# v89/v91 — explicit content types + caching for the vendored MediaPipe
+# assets the proctored Exam Mode depends on. The browser refuses to
+# execute an ES module or compile wasm served with a generic type, so
+# these lines are load-bearing for the camera/phone/voice checks.
+# v91: the old `/wasm/*` glob also matched vision_wasm_internal.js (the
+# Emscripten GLUE loaded as a classic script) and served it as
+# application/wasm — now the rule targets *.wasm only, and the .js glue
+# (including the vision_wasm_nosimd_* fallback pair for non-SIMD
+# devices) gets a JavaScript type.
+
+/vendor/vision/vision_bundle.mjs
+  Content-Type: text/javascript; charset=utf-8
+
+/vendor/vision/wasm/*.wasm
+  Content-Type: application/wasm
+
+/vendor/vision/wasm/*.js
+  Content-Type: text/javascript; charset=utf-8
+
+/vendor/vision/models/*
+  Cache-Control: public, max-age=604800
+
+# The models are ~4.7 MB and never change within a deployment: let the
+# browser reuse them. The runtime and wasm follow the normal app shell
+# caching handled by the service worker.

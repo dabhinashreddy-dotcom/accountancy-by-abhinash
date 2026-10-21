@@ -1,0 +1,5 @@
+# Accountancy By Abinash — free CBSE Class 11 and Class 12 Accountancy learning platform
+User-agent: *
+Allow: /
+
+Sitemap: https://accountancybyabhinash.netlify.app/sitemap.xml

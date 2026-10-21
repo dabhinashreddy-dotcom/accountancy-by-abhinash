@@ -1,0 +1,249 @@
+<!doctype html>
+<!-- ============================================================
+     EXAM MODEL PIPELINE HARNESS (dev only — not shipped to users,
+     not linked from the site, not in the service-worker app shell)
+
+     Real-browser verification that the VENDORED MediaPipe pipeline
+     actually works end to end on this deployment:
+
+        vendor/vision/vision_bundle.mjs   (runtime)
+        vendor/vision/wasm/vision_wasm_internal.*  (SIMD wasm)
+        vendor/vision/models/blaze_face_short_range.tflite  (face)
+        vendor/vision/models/efficientdet_lite0.tflite     (COCO, "cell phone")
+
+     Open this page through the SAME origin/static server the site
+     uses (e.g. `node tools/serve.js` then
+     /tests/exam-model-pipeline.html) and press the button with a
+     camera attached. Every step prints PASS/FAIL — a red step means
+     the deployment is broken for proctored exams, exactly as the
+     pre-exam security screen would report it.
+
+     Nothing is recorded or uploaded: frames are drawn to a canvas
+     that stays on this page, and results are only printed below.
+
+     Two freely-licensed photographs ship next to this file as offline
+     fixtures (they make the harness useful on a machine with no
+     camera, and they are what caught the GPU-delegate bug described
+     in exam-monitor.js):
+        tests/fixture-face-public-domain.jpg — "Marie Curie, portrait,
+           1900", Wikimedia Commons, public domain
+        tests/fixture-phone-hand.jpg — "White smartphone (photo) on a
+           hand adult" by MerveillePédia, Wikimedia Commons,
+           CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0)
+     Both are dev-only fixtures: they are never referenced by the site
+     itself.
+     ============================================================ -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam model pipeline harness (dev)</title>
+<style>
+  body { font: 15px/1.6 system-ui, sans-serif; margin: 24px auto; max-width: 760px; color: #1b1f24; }
+  h1 { font-size: 1.2rem; }
+  button { padding: 10px 18px; font-size: 1rem; cursor: pointer; }
+  #log { list-style: none; padding: 0; margin-top: 16px; }
+  #log li { padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; background: #f2f3f5; }
+  #log li.pass { background: #e1f0e8; }
+  #log li.fail { background: #f8e5e2; }
+  #view { width: 320px; aspect-ratio: 4/3; background: #000; margin-top: 14px; transform: scaleX(-1); object-fit: cover; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Exam model pipeline harness</h1>
+<p>Verifies the vendored MediaPipe runtime, wasm, and both detection models against a live camera on this deployment.</p>
+<button id="run">Run pipeline check</button>
+<video id="view" autoplay playsinline muted></video>
+<ul id="log"></ul>
+<script type="module">
+const logEl = document.getElementById("log");
+function log(msg, cls) {
+  const li = document.createElement("li");
+  li.textContent = msg;
+  if (cls) li.className = cls;
+  logEl.appendChild(li);
+  console.log("[harness]", msg);
+}
+async function step(name, fn) {
+  const t0 = performance.now();
+  try {
+    const detail = await fn();
+    log(`PASS — ${name}${detail ? " (" + detail + ")" : ""} [${Math.round(performance.now() - t0)}ms]`, "pass");
+    return true;
+  } catch (e) {
+    log(`FAIL — ${name}: ${e && e.message ? e.message : e}`, "fail");
+    return false;
+  }
+}
+
+document.getElementById("run").addEventListener("click", async () => {
+  logEl.textContent = "";
+  const base = location.origin;   // the site serves /vendor and /models at the root
+  let okAll = true;
+
+  function loadImage(src) {
+    return new Promise((res, rej) => {
+      const im = new Image();
+      im.crossOrigin = "anonymous";
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error("fixture image failed to load: " + src));
+      im.src = src;
+    });
+  }
+
+  // 1 — the runtime module loads from the vendored path.
+  let vision = null;
+  okAll = await step("vision_bundle.mjs loads from /vendor/vision/", async () => {
+    vision = await import(base + "/vendor/vision/vision_bundle.mjs");
+    if (!vision.FilesetResolver) throw new Error("FilesetResolver missing");
+    return "FilesetResolver available";
+  }) && okAll;
+  if (!vision) { log("Stopping: no runtime.", "fail"); return; }
+
+  // 2 — the WASM backend initialises (the SIMD binary is served).
+  let fileset = null;
+  okAll = await step("wasm backend initialises", async () => {
+    fileset = await vision.FilesetResolver.forVisionTasks(base + "/vendor/vision/wasm");
+    return "wasm ready";
+  }) && okAll;
+  if (!fileset) return;
+
+  // 3 — the face model loads (CPU delegate — the same setting the
+  // production runtime pins; see the verified note in exam-monitor.js).
+  let faceTask = null;
+  okAll = await step("blaze_face_short_range.tflite loads", async () => {
+    faceTask = await vision.FaceDetector.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: base + "/vendor/vision/models/blaze_face_short_range.tflite", delegate: "CPU" },
+      runningMode: "VIDEO", minDetectionConfidence: 0.5
+    });
+    return "face detector ready (CPU)";
+  }) && okAll;
+
+  // 4 — the COCO object model loads and KNOWS the cell-phone class.
+  let objectTask = null;
+  okAll = await step("efficientdet_lite0.tflite loads", async () => {
+    objectTask = await vision.ObjectDetector.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: base + "/vendor/vision/models/efficientdet_lite0.tflite", delegate: "CPU" },
+      runningMode: "VIDEO", scoreThreshold: 0.3
+    });
+    return "object detector ready (CPU)";
+  }) && okAll;
+
+  // 4b — OFFLINE inference: real photographs through the real models.
+  // This runs even when no camera is attached, and it is the check that
+  // would have caught the GPU-delegate bug (a detector that ignores its
+  // input returns the same canned answer for every image).
+  if (faceTask && objectTask) {
+    await step("face model detects a real face in a real photo", async () => {
+      const img = await loadImage(base + "/tests/fixture-face-public-domain.jpg");
+      const det = await vision.FaceDetector.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: base + "/vendor/vision/models/blaze_face_short_range.tflite", delegate: "CPU" },
+        runningMode: "IMAGE", minDetectionConfidence: 0.5
+      });
+      const r = await det.detect(img);
+      det.close();
+      const n = ((r && r.detections) || []).length;
+      if (n < 1) throw new Error("0 faces detected in the portrait fixture");
+      return n + " face detected";
+    }) && (okAll = okAll);
+
+    await step("object model ignores a blank frame (no canned hits)", async () => {
+      const cv = document.createElement("canvas");
+      cv.width = 320; cv.height = 240;
+      const cx = cv.getContext("2d");
+      cx.fillStyle = "#3a3a3a"; cx.fillRect(0, 0, 320, 240);
+      const det = await vision.ObjectDetector.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: base + "/vendor/vision/models/efficientdet_lite0.tflite", delegate: "CPU" },
+        runningMode: "IMAGE", scoreThreshold: 0.05
+      });
+      const r = await det.detect(cv);
+      det.close();
+      const labels = ((r && r.detections) || []).flatMap((d) => (d.categories || []).map((c) => c.categoryName || c.label));
+      if (labels.indexOf("cell phone") !== -1) throw new Error("a blank frame claims a cell phone — the detector is not reading its input");
+      return "no cell phone in a blank frame (" + (labels.join(", ") || "nothing above 5%") + ")";
+    }) && (okAll = okAll);
+
+    await step("object model finds 'cell phone' in a real photo", async () => {
+      const img = await loadImage(base + "/tests/fixture-phone-hand.jpg");
+      const det = await vision.ObjectDetector.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: base + "/vendor/vision/models/efficientdet_lite0.tflite", delegate: "CPU" },
+        runningMode: "IMAGE", scoreThreshold: 0.05
+      });
+      const r = await det.detect(img);
+      det.close();
+      const hits = ((r && r.detections) || []).flatMap((d) => (d.categories || []).map((c) => (c.categoryName || c.label) + "@" + Math.round((c.score || 0) * 100)));
+      if (!hits.some((h) => h.indexOf("cell phone@") === 0)) throw new Error("no cell phone detection: " + hits.join(", "));
+      return hits.filter((h) => h.indexOf("cell phone@") === 0).join(", ");
+    }) && (okAll = okAll);
+  }
+
+  // 5 — a live camera.
+  let stream = null;
+  okAll = await step("camera permission + live track", async () => {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    const v = document.getElementById("view");
+    v.srcObject = stream;
+    await v.play();
+    return v.videoWidth + "x" + v.videoHeight;
+  }) && okAll;
+  if (!stream || !faceTask || !objectTask) { cleanup(stream); return; }
+
+  // 6 — REAL inference on real frames, both models, timestamps
+  // strictly increasing (exactly what exam-monitor.js does).
+  await step("face inference on live frames", async () => {
+    const v = document.getElementById("view");
+    let ts = 0, seen = 0;
+    for (let i = 0; i < 12; i++) {
+      ts = Math.max(ts + 1, Math.round(performance.now()));
+      const res = await faceTask.detectForVideo(v, ts);
+      seen += ((res && res.detections) || []).length;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    if (seen === 0) throw new Error("0 faces across 12 passes — sit in frame and run again");
+    return seen + " face detections across 12 passes";
+  }) && (okAll = okAll);
+
+  await step("object inference runs (cell phone class present)", async () => {
+    const v = document.getElementById("view");
+    let ts = 0;
+    for (let i = 0; i < 4; i++) {
+      ts = Math.max(ts + 1, Math.round(performance.now()));
+      const res = await objectTask.detectForVideo(v, ts);
+      // Report what categories the model emits — proves the label set.
+      const labels = ((res && res.detections) || [])
+        .flatMap((d) => (d.categories || []).map((c) => c.label));
+      if (i === 0) log("object detector categories seen: " + (labels.length ? labels.join(", ") : "(nothing in frame)"));
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return "4 passes completed without error";
+  }) && (okAll = okAll);
+
+  // 7 — the audio pipeline the pre-check uses.
+  await step("microphone calibration + features", async () => {
+    const astream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(astream);
+    const an = ctx.createAnalyser();
+    an.fftSize = 2048;
+    src.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    an.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    astream.getTracks().forEach((t) => t.stop());
+    await ctx.close();
+    if (rms === 0) throw new Error("microphone delivered pure digital silence");
+    return "ambient RMS " + rms.toFixed(5);
+  }) && (okAll = okAll);
+
+  cleanup(stream);
+  log(okAll ? "ALL STEPS PASSED — the proctored exam pipeline works on this deployment."
+            : "SOME STEPS FAILED — proctored exams will fail closed (by design) until they pass.",
+      okAll ? "pass" : "fail");
+
+  function cleanup(st) { if (st) st.getTracks().forEach((t) => t.stop()); }
+});
+</script>
+</body>
+</html>

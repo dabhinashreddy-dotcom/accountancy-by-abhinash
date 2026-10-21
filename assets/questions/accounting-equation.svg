@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" role="img" aria-labelledby="aeTitle aeDesc" font-family="Segoe UI, system-ui, sans-serif">
+  <title id="aeTitle">The accounting equation</title>
+  <desc id="aeDesc">Three boxes in a row: Assets on the left, an equals sign, then Liabilities plus Capital on the right, showing that total assets always equal total liabilities plus capital.</desc>
+  <rect width="720" height="260" fill="#F7F5EF"/>
+  <rect x="24" y="70" width="180" height="120" rx="14" fill="#2B5FA6"/>
+  <text x="114" y="128" fill="#FFFFFF" font-size="26" font-weight="700" text-anchor="middle">Assets</text>
+  <text x="114" y="156" fill="#C7DAF3" font-size="15" text-anchor="middle">what the business owns</text>
+  <text x="238" y="140" fill="#14213D" font-size="46" font-weight="700" text-anchor="middle">=</text>
+  <rect x="292" y="70" width="180" height="120" rx="14" fill="#5B4E8C"/>
+  <text x="382" y="128" fill="#FFFFFF" font-size="26" font-weight="700" text-anchor="middle">Liabilities</text>
+  <text x="382" y="156" fill="#DCD6F0" font-size="15" text-anchor="middle">what the business owes</text>
+  <text x="496" y="140" fill="#14213D" font-size="46" font-weight="700" text-anchor="middle">+</text>
+  <rect x="516" y="70" width="180" height="120" rx="14" fill="#C9A227"/>
+  <text x="606" y="128" fill="#FFFFFF" font-size="26" font-weight="700" text-anchor="middle">Capital</text>
+  <text x="606" y="156" fill="#F6EBC4" font-size="15" text-anchor="middle">owner's claim</text>
+  <text x="360" y="34" fill="#14213D" font-size="17" font-weight="700" text-anchor="middle">Every transaction keeps this balance intact</text>
+  <text x="360" y="228" fill="#6B6478" font-size="14" text-anchor="middle">Income and gains raise Capital; expenses and drawings reduce it</text>
+</svg>

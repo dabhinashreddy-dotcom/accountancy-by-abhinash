@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>lifecycle probe</title></head>
+<body>
+<pre id="out">loading…</pre>
+<script>
+/* Dev-only probe: records the ORDER in which beforeunload / pagehide /
+   visibilitychange fire during a reload, into localStorage so the log
+   survives the navigation. Not part of the site. */
+(function () {
+  var KEY = "probe_lifecycle_log";
+  var prior = [];
+  try { prior = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) {}
+  var runsKey = "probe_lifecycle_run";
+  var run = 0;
+  try { run = parseInt(localStorage.getItem(runsKey) || "0", 10); } catch (e) {}
+  var log = [];
+  function rec(ev, extra) { log.push(ev + (extra ? ":" + extra : "")); try { localStorage.setItem(KEY, JSON.stringify(prior.concat([{ run: run, log: log }]))); } catch (e) {} }
+  window.addEventListener("beforeunload", function () { rec("beforeunload"); }, true);
+  window.addEventListener("pagehide", function (e) { rec("pagehide", "persisted=" + e.persisted); }, true);
+  document.addEventListener("visibilitychange", function () { rec("visibilitychange:" + document.visibilityState); }, true);
+  window.addEventListener("unload", function () { rec("unload"); }, true);
+  try { localStorage.setItem(runsKey, String(run + 1)); } catch (e) {}
+  var show = prior.concat([{ run: run, log: log }]);
+  document.getElementById("out").textContent = JSON.stringify(show, null, 1);
+  document.title = "probe run " + run;
+})();
+</script>
+</body></html>

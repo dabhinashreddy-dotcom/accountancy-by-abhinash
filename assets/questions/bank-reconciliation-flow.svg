@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="brsTitle brsDesc" font-family="Segoe UI, system-ui, sans-serif">
+  <title id="brsTitle">Bank Reconciliation Statement — how the two balances differ</title>
+  <desc id="brsDesc">Two rounded boxes side by side: Balance as per Cash Book on the left and Balance as per Pass Book on the right. Four arrows between them are labelled: cheques deposited not yet cleared, cheques issued not yet presented, bank charges not entered in the Cash Book, and interest credited by the bank not entered in the Cash Book.</desc>
+  <rect width="720" height="300" fill="#F7F5EF"/>
+  <rect x="24" y="110" width="200" height="80" rx="12" fill="#2B5FA6"/>
+  <text x="124" y="145" fill="#FFFFFF" font-size="17" font-weight="700" text-anchor="middle">Balance as per</text>
+  <text x="124" y="170" fill="#C7DAF3" font-size="16" font-weight="600" text-anchor="middle">Cash Book</text>
+  <rect x="496" y="110" width="200" height="80" rx="12" fill="#5B4E8C"/>
+  <text x="596" y="145" fill="#FFFFFF" font-size="17" font-weight="700" text-anchor="middle">Balance as per</text>
+  <text x="596" y="170" fill="#DCD6F0" font-size="16" font-weight="600" text-anchor="middle">Pass Book</text>
+  <defs>
+    <marker id="arrR" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#14213D"/></marker>
+    <marker id="arrL" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M9,0 L0,4.5 L9,9 z" fill="#C9A227"/></marker>
+  </defs>
+  <path d="M228 60 H490" stroke="#14213D" stroke-width="2.5" marker-end="url(#arrR)"/>
+  <text x="360" y="42" fill="#14213D" font-size="13.5" text-anchor="middle">Cheques deposited but not yet cleared by the bank</text>
+  <path d="M228 92 H490" stroke="#14213D" stroke-width="2.5" marker-end="url(#arrR)"/>
+  <text x="360" y="84" fill="#14213D" font-size="13.5" text-anchor="middle">Cheques issued but not yet presented for payment</text>
+  <path d="M492 214 H230" stroke="#C9A227" stroke-width="2.5" marker-end="url(#arrL)"/>
+  <text x="360" y="238" fill="#8a6d15" font-size="13.5" text-anchor="middle">Bank charges not entered in the Cash Book</text>
+  <path d="M492 246 H230" stroke="#C9A227" stroke-width="2.5" marker-end="url(#arrL)"/>
+  <text x="360" y="270" fill="#8a6d15" font-size="13.5" text-anchor="middle">Interest credited by the bank, not entered in the Cash Book</text>
+  <text x="360" y="292" fill="#6B6478" font-size="13" text-anchor="middle">A reconciliation statement explains every rupee of the difference</text>
+</svg>

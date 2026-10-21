@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="tTitle tDesc" font-family="Segoe UI, system-ui, sans-serif">
+  <title id="tTitle">A T-format ledger account</title>
+  <desc id="tDesc">A ledger account drawn as the letter T. The left half is the debit side headed Date, Particulars, J.F., Amount. The right half is the credit side with the same four columns. A closing balance line appears at the foot of the debit side.</desc>
+  <rect width="720" height="300" fill="#F7F5EF"/>
+  <rect x="60" y="40" width="600" height="220" rx="10" fill="#FFFFFF" stroke="#14213D" stroke-width="2.5"/>
+  <line x1="360" y1="40" x2="360" y2="260" stroke="#14213D" stroke-width="2.5"/>
+  <line x1="60" y1="86" x2="660" y2="86" stroke="#14213D" stroke-width="2.5"/>
+  <text x="210" y="71" fill="#2B5FA6" font-size="20" font-weight="700" text-anchor="middle">Debit side</text>
+  <text x="510" y="71" fill="#5B4E8C" font-size="20" font-weight="700" text-anchor="middle">Credit side</text>
+  <g fill="#14213D" font-size="14" font-weight="600">
+    <text x="76" y="112">Date</text><text x="146" y="112">Particulars</text><text x="300" y="112">J.F.</text><text x="330" y="112" text-anchor="end">Amount</text>
+    <text x="376" y="112">Date</text><text x="446" y="112">Particulars</text><text x="600" y="112">J.F.</text><text x="630" y="112" text-anchor="end">Amount</text>
+  </g>
+  <g stroke="#D8D3C6" stroke-width="1">
+    <line x1="60" y1="126" x2="360" y2="126"/><line x1="360" y1="126" x2="660" y2="126"/>
+    <line x1="60" y1="166" x2="360" y2="166"/><line x1="360" y1="166" x2="660" y2="166"/>
+    <line x1="60" y1="206" x2="360" y2="206"/><line x1="360" y1="206" x2="660" y2="206"/>
+  </g>
+  <g fill="#6B6478" font-size="13">
+    <text x="76" y="152">1 April</text><text x="146" y="152">To Balance b/d</text><text x="330" y="152" text-anchor="end">XXXX</text>
+    <text x="76" y="192">…</text><text x="146" y="192">To Cash A/c</text><text x="330" y="192" text-anchor="end">XXXX</text>
+    <text x="376" y="152">…</text><text x="446" y="152">By Cash A/c</text><text x="630" y="152" text-anchor="end">XXXX</text>
+    <text x="376" y="192">31 Mar</text><text x="446" y="192">By Balance c/d</text><text x="630" y="192" text-anchor="end">XXXX</text>
+  </g>
+  <text x="76" y="242" fill="#14213D" font-size="14" font-weight="700">Total</text>
+  <text x="330" y="242" fill="#14213D" font-size="14" font-weight="700" text-anchor="end">XXXX</text>
+  <text x="376" y="242" fill="#14213D" font-size="14" font-weight="700">Total</text>
+  <text x="630" y="242" fill="#14213D" font-size="14" font-weight="700" text-anchor="end">XXXX</text>
+  <text x="360" y="290" fill="#6B6478" font-size="14" text-anchor="middle">Both totals must agree once the closing balance is carried down</text>
+</svg>

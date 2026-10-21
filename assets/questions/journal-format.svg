@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="jTitle jDesc" font-family="Segoe UI, system-ui, sans-serif">
+  <title id="jTitle">Format of a Journal</title>
+  <desc id="jDesc">A journal sheet with five columns: Date, Particulars, L.F., Debit amount and Credit amount. One worked entry is shown: Ram's account is debited 5000 and Cash account is credited 5000, with the narration in brackets underneath.</desc>
+  <rect width="720" height="300" fill="#F7F5EF"/>
+  <rect x="30" y="40" width="660" height="220" rx="10" fill="#FFFFFF" stroke="#14213D" stroke-width="2.5"/>
+  <text x="360" y="30" fill="#14213D" font-size="18" font-weight="700" text-anchor="middle">JOURNAL</text>
+  <line x1="30" y1="86" x2="690" y2="86" stroke="#14213D" stroke-width="2.5"/>
+  <line x1="120" y1="40" x2="120" y2="260" stroke="#14213D" stroke-width="1.5"/>
+  <line x1="510" y1="40" x2="510" y2="260" stroke="#14213D" stroke-width="1.5"/>
+  <line x1="600" y1="40" x2="600" y2="260" stroke="#14213D" stroke-width="1.5"/>
+  <g fill="#2B5FA6" font-size="14" font-weight="700">
+    <text x="75" y="70" text-anchor="middle">Date</text>
+    <text x="315" y="70" text-anchor="middle">Particulars</text>
+    <text x="555" y="70" text-anchor="middle">L.F.</text>
+    <text x="645" y="70" text-anchor="middle">₹ Amount</text>
+  </g>
+  <line x1="120" y1="86" x2="120" y2="260" stroke="#D8D3C6" stroke-width="1"/>
+  <text x="44" y="120" fill="#6B6478" font-size="13">1 Apr</text>
+  <text x="140" y="120" fill="#14213D" font-size="15" font-weight="700">Cash A/c ................................ Dr</text>
+  <text x="532" y="120" fill="#14213D" font-size="15" text-anchor="middle">5000</text>
+  <text x="140" y="150" fill="#6B6478" font-size="14">        To Ram's A/c</text>
+  <text x="645" y="150" fill="#14213D" font-size="15" text-anchor="middle">5000</text>
+  <text x="140" y="180" fill="#6B6478" font-size="13">(Being cash received from Ram)</text>
+  <line x1="30" y1="205" x2="690" y2="205" stroke="#D8D3C6" stroke-width="1"/>
+  <text x="140" y="232" fill="#6B6478" font-size="13">…</text>
+  <text x="360" y="290" fill="#6B6478" font-size="14" text-anchor="middle">Every entry has at least one debit and one credit, and the two totals are equal</text>
+</svg>

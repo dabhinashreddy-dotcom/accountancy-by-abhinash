@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palette width harness — dev only</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 12px; background:#111; color:#eee; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p { font-size: 12px; margin: 0 0 10px; color:#aaa; }
+  #controls button { margin: 2px 4px 2px 0; padding: 6px 10px; font-size: 13px; }
+  #status { font-size: 13px; margin-top: 8px; white-space: pre-wrap; }
+  #frame { border: 2px solid #444; background:#fff; display:block; }
+</style>
+</head>
+<body>
+<h1>Question Palette — narrow-width harness (dev only)</h1>
+<p>Embeds the exam at a target width to verify the palette at 320 / 360 / 375 / 390 px. Same-origin iframe, so the parent can drive the exam inside it.</p>
+<div id="controls">
+  <button data-w="320">320px</button>
+  <button data-w="360">360px</button>
+  <button data-w="375">375px</button>
+  <button data-w="390">390px</button>
+  <button id="runAll">Run all widths</button>
+</div>
+<iframe id="frame" src="about:blank" width="320" height="560" title="exam under test"></iframe>
+<div id="status">idle</div>
+
+<script>
+(function () {
+  var frame = document.getElementById("frame");
+  var statusEl = document.getElementById("status");
+  var TARGET_WIDTHS = [320, 360, 375, 390];
+  var results = {};
+
+  function log(s) { statusEl.textContent = s; }
+
+  function win() { return frame.contentWindow; }
+  function doc() { return frame.contentDocument; }
+
+  // The seven legacy modes draw ONLY 1-mark questions, and no case study in
+  // the bank is worth 1 mark — so a legacy paper contains no cases at all
+  // (marks===1 pool: mcq/multi/matching/numerical, 1848 items, 0 cases).
+  // The width walk therefore has to run on the CBSE Board Mock Test, the
+  // one mode guaranteed to serve every format.
+  var MOCK_PAPER = "cbse-board-mock";
+
+  function activePaperId() {
+    return weval("(function(){try{var r=JSON.parse(localStorage.getItem('abhinash_exam_attempt_v1')||'null');" +
+      "return r&&r.paperId?r.paperId:null}catch(e){return null}})()");
+  }
+
+  function loadAt(width, cb) {
+    frame.width = String(width);
+    // If a previous width left an ACTIVE exam in the iframe, its
+    // beforeunload handler would pop a dialog and abort this navigation.
+    // Detach it first so width transitions are clean (test-only).
+    try {
+      var pw = frame.contentWindow;
+      if (pw && pw.examOnBeforeUnload) pw.removeEventListener("beforeunload", pw.examOnBeforeUnload);
+    } catch (e) {}
+    // Cache-bust via QUERY string, not the hash — a corrupted hash
+    // (#exam-mode&_t=..) breaks SPA routing and lands on the home page.
+    frame.src = "/index.html?_t=" + Date.now() + "#exam-mode";
+    var onLoad = function () {
+      frame.removeEventListener("load", onLoad);
+      // give the SPA a beat to boot
+      setTimeout(function () {
+        // Only ONE live attempt is ever kept, so an attempt on a different
+        // paper would just resume and the walk would never see a case.
+        // app.js drives the attempt lifecycle through its OWN store
+        // (abhinash_exam_store_v1, restored via day.activeAttemptId), not
+        // through ExamSecurity — so retiring it means voiding the stored
+        // attempt and clearing the day pointer. Dev-only test code; it
+        // touches this browser's local profile and nothing in the shipped
+        // source. The retired attempt still counts as used for the day.
+        var liveId = null;
+        try {
+          liveId = weval("(function(){try{" +
+            "var s=JSON.parse(localStorage.getItem('abhinash_exam_store_v1')||'null');" +
+            "return s&&s.day?s.day.activeAttemptId:null}catch(e){return null}})()");
+        } catch (e) {}
+        if (liveId && activePaperId() !== MOCK_PAPER) {
+          try {
+            win().eval("(function(){try{" +
+              "var s=JSON.parse(localStorage.getItem('abhinash_exam_store_v1')||'null');" +
+              "if(s&&s.attempts&&s.attempts['" + liveId + "'])s.attempts['" + liveId + "'].status='void';" +
+              "if(s&&s.day)s.day.activeAttemptId=null;" +
+              "if(s)localStorage.setItem('abhinash_exam_store_v1',JSON.stringify(s));" +
+              "}catch(e){}" +
+              "try{localStorage.removeItem('abhinash_exam_attempt_v1');}catch(e){}" +
+              "})();");
+          } catch (e) {}
+          return setTimeout(function () { loadAt(width, cb); }, 800);
+        }
+        cb();
+      }, 900);
+    };
+    frame.addEventListener("load", onLoad);
+  }
+
+  // Read a global lexical binding (let/const are NOT window properties,
+  // so w.examState is undefined even when it exists — use eval instead).
+  function weval(expr) {
+    try { return win().eval(expr); } catch (e) { return undefined; }
+  }
+
+  // Poll until cond() is true (or tries run out). Fixed sleeps are not
+  // enough here: renderRoute() waits out a 110ms view transition before
+  // it swaps the card, and a background iframe can stretch that further,
+  // so reading on a timer measures the PREVIOUS question.
+  function until(cond, tries, step, cb) {
+    if (cond()) return cb(true);
+    if (tries <= 0) return cb(false);
+    setTimeout(function () { until(cond, tries - 1, step, cb); }, step);
+  }
+
+  // Walk the readiness flow inside the iframe until an exam is active.
+  function startExam(tries, cb) {
+    var w = win();
+    if (!w || !w.document) return cb(false, "no frame window");
+    var d = w.document;
+    var status = weval("typeof examState !== 'undefined' && examState ? examState.status : null");
+    if (status === "active") return cb(true, "active");
+
+    // Prefer the CBSE Board Mock Test card — the first .ex-start-btn in the
+    // list belongs to Full Syllabus Mock (50 × 1 mark), which can contain
+    // no case study at all.
+    var start = null;
+    var cards = d.querySelectorAll(".ex-card, .ex-mode-card, li, article");
+    for (var ci = 0; ci < cards.length; ci++) {
+      if (/CBSE Board Mock Test/i.test(cards[ci].textContent || "")) {
+        start = cards[ci].querySelector(".ex-start-btn");
+        if (start) break;
+      }
+    }
+    if (!start) {
+      var anyStart = d.querySelectorAll(".ex-start-btn");
+      for (var ai = 0; ai < anyStart.length; ai++) {
+        if (/CBSE Board Mock Test/i.test(anyStart[ai].closest("li,article,.ex-card") ?
+            anyStart[ai].closest("li,article,.ex-card").textContent : "") ||
+            /CBSE Board Mock Test/i.test(anyStart[ai].getAttribute("data-paper") || "")) { start = anyStart[ai]; break; }
+      }
+    }
+    if (!start && anyStart && anyStart.length) {
+      // last resort: the mock is the 8th mode in the list
+      start = anyStart[anyStart.length - 1];
+    }
+    var agree = d.querySelector("#exInstrAgree");
+    var next = d.querySelector("#exInstrNext");
+    var regName = d.querySelector("#exRegName");
+    var regNext = d.querySelector("#exRegNext");
+    var begin = d.querySelector("#exBeginBtn");
+
+    if (start) { start.click(); }
+    else if (agree && next) {
+      if (!agree.checked) { agree.checked = true; agree.dispatchEvent(new w.Event("change", { bubbles: true })); }
+      if (!next.disabled) next.click();
+    }
+    else if (regName && regNext) {
+      if (!regName.value) { regName.value = "Width Tester"; regName.dispatchEvent(new w.Event("input", { bubbles: true })); }
+      regNext.click();
+    }
+    else if (begin) { begin.click(); }
+
+    if (tries <= 0) return cb(false, "could not start (status=" + status + ")");
+    setTimeout(function () { startExam(tries - 1, cb); }, 250);
+  }
+
+  function runWidth(width, done) {
+    loadAt(width, function () {
+      startExam(120, function (ok, msg) {
+        if (!ok) { results[width] = { error: msg }; return done(); }
+        var w = win(), d = doc();
+        var toggle = d.querySelector("#exSheetToggle");
+        var sheet = d.querySelector("#exPaletteSheet");
+        var r = { width: width, vw: w.innerWidth, started: true };
+
+        // 1) OPEN
+        //    The sheet slides in over --dur-3 (~240ms) and the close
+        //    button is display:none until the sheet lays out, so a fixed
+        //    sleep measures it mid-animation — a hidden button reports
+        //    0x0 and (worse) 0,0 passes the in-viewport bounds test as a
+        //    false pass. Poll until the button has real geometry instead.
+        toggle.click();
+        until(function () {
+          var b = d.querySelector(".ex-sheet-close");
+          if (!b || !sheet.classList.contains("is-open")) return false;
+          // WAIT FOR THE TRANSITION, not just for size. .ex-side-col slides
+          // up from translateY(103%) over ~240ms, so the button already has
+          // its full 34x34 box while it is still a screen-height BELOW the
+          // viewport — measuring then reports it out of bounds, which is a
+          // false failure, not a layout bug. transform:none is the settled
+          // state that .is-open applies when the slide finishes.
+          if (w.getComputedStyle(sheet).transform !== "none") return false;
+          var rc = b.getBoundingClientRect();
+          return rc.width > 0 && rc.height > 0;
+        }, 60, 50, function () {
+        r.open_sheetIsOpen = sheet.classList.contains("is-open");
+        r.open_backdrop = d.querySelectorAll(".ex-sheet-backdrop").length;
+        r.open_overflowLocked = w.document.body.style.overflow === "hidden";
+        // close button reachable within viewport?
+        var cbBtn = d.querySelector(".ex-sheet-close");
+        var cbRect = cbBtn.getBoundingClientRect();
+        r.closeBtn_sized = cbRect.width > 0 && cbRect.height > 0;
+        r.closeBtn_inViewport = r.closeBtn_sized && cbRect.left >= 0 && cbRect.right <= w.innerWidth && cbRect.top >= 0 && cbRect.bottom <= w.innerHeight;
+        r.closeBtn_tapSize = Math.round(cbRect.width) + "x" + Math.round(cbRect.height);
+        // horizontal overflow while open?
+        r.hOverflow_open = d.documentElement.scrollWidth > w.innerWidth;
+        // sheet fits width?
+        var shRect = sheet.getBoundingClientRect();
+        r.sheetWidthFits = shRect.width <= w.innerWidth + 1;
+        finishOpen();
+        });
+
+        function finishOpen() {
+        // cbBtn was declared inside the poll above, which is a DIFFERENT
+        // function scope — referencing it here threw "cbBtn is not defined"
+        // and killed the whole width run silently, so step 9 never walked
+        // a single question. Re-query it in the scope that actually uses it.
+        var cbBtn = d.querySelector(".ex-sheet-close");
+
+        // 2) CLOSE via close button (first tap)
+        cbBtn.click();
+        r.close1_closed = !sheet.classList.contains("is-open");
+        r.close1_backdropGone = d.querySelectorAll(".ex-sheet-backdrop").length === 0;
+        r.close1_scrollRestored = w.document.body.style.overflow === "";
+
+        // 3) BACKDROP dismissal
+        toggle.click();
+        var bd = d.querySelector(".ex-sheet-backdrop");
+        r.backdrop_present = !!bd;
+        if (bd) bd.click();
+        r.backdrop_closed = !sheet.classList.contains("is-open");
+        r.backdrop_gone = d.querySelectorAll(".ex-sheet-backdrop").length === 0;
+
+        // 4) ESCAPE
+        toggle.click();
+        d.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        r.escape_closed = !sheet.classList.contains("is-open");
+        r.escape_backdropGone = d.querySelectorAll(".ex-sheet-backdrop").length === 0;
+        r.escape_scrollRestored = w.document.body.style.overflow === "";
+
+        // 5) CLOSE-BEFORE-NAVIGATE (tap a question)
+        var startIdx = weval("examState.index");
+        toggle.click();
+        var q = d.querySelector("#exPaletteSheet .ex-pq[aria-label^='Question 5']");
+        if (q) q.click();
+        r.nav_changedIndex = weval("examState.index") !== startIdx;
+        r.nav_closedAfterTap = !sheet.classList.contains("is-open");
+        r.nav_backdropGone = d.querySelectorAll(".ex-sheet-backdrop").length === 0;
+
+        // 6) REOPEN repeatedly — no stale backdrop, no scroll leak
+        var staleOk = true, overflowOk = true;
+        for (var i = 0; i < 6; i++) {
+          toggle.click();
+          if (d.querySelectorAll(".ex-sheet-backdrop").length !== 1) staleOk = false;
+          var cbtn = d.querySelector(".ex-sheet-close");
+          if (cbtn) cbtn.click();
+          if (d.querySelectorAll(".ex-sheet-backdrop").length !== 0) staleOk = false;
+          if (w.document.body.style.overflow !== "") overflowOk = false;
+        }
+        r.repeat_noStaleBackdrop = staleOk;
+        r.repeat_scrollRestored = overflowOk;
+
+        // 7) PAGE INTERACTIVE after closes (tap an answer option)
+        var opt = d.querySelector(".ex-option");
+        if (opt) opt.click();
+        r.page_interactiveAfterClose = !!(opt && weval("examState.answers[examState.index]") !== null && weval("examState.answers[examState.index]") !== undefined);
+
+        // 8) closed sheet not eating taps across viewport
+        var eatCount = 0, probes = 0;
+        for (var fx = 0.1; fx <= 0.9; fx += 0.2) {
+          for (var fy = 0.2; fy <= 0.8; fy += 0.3) {
+            probes++;
+            var x = Math.round(w.innerWidth * fx), y = Math.round(w.innerHeight * fy);
+            var el = d.elementFromPoint(x, y);
+            if (el && sheet.contains(el)) eatCount++;
+          }
+        }
+        r.noTapEater = eatCount === 0;
+        r.tapEaterHits = eatCount + "/" + probes;
+
+        // Run the format walk ONLY once the palette steps above are done.
+        // It used to sit outside this callback, so it started the moment
+        // startExam returned and ran CONCURRENTLY with steps 2–8 — the two
+        // fought over the same iframe. That is why the numbers moved around
+        // depending on how long the sheet transition happened to take.
+        runStep9();
+        }
+
+        function runStep9() {
+        // 9) THE ADDED FORMATS at this width.
+        //    A case study nests a sub-card per part, so if any part is
+        //    dropped or the card overflows, the student silently loses
+        //    marks on a phone. Walk every case + matching question in the
+        //    paper and check each one: all parts present, parts adding up
+        //    to the printed marks, and no horizontal scroll anywhere.
+        //    examGotoQuestion() only SCHEDULES the re-render: renderRoute()
+        //    waits 110ms for the view-leaving transition before it swaps
+        //    #view-root. Measuring sooner reads the previous question, so
+        //    wait comfortably past that.
+        var qs = weval("examState.questions");
+        var fmt = { cases: 0, caseOk: 0, match: 0, matchOk: 0, mcq: 0, mcqOk: 0, num: 0, numOk: 0,
+                    overflow: [], broken: [] };
+
+        function measureOne(qi) {
+          var type = qs[qi].type;
+          if (d.documentElement.scrollWidth > w.innerWidth + 1) fmt.overflow.push("#" + (qi + 1) + ":" + type);
+
+          if (type === "case") {
+            fmt.cases++;
+            var area = d.querySelector("#examOptions.ex-subs");
+            var blocks = area ? area.querySelectorAll(":scope > .ex-sub").length : -1;
+            var sum = 0;
+            if (area) {
+              area.querySelectorAll(".ex-sub-marks").forEach(function (e) {
+                var m = (e.textContent || "").match(/\d+/);
+                if (m) sum += parseInt(m[0], 10);
+              });
+            }
+            // every sub-stem must have its control: an mcq sub needs its
+            // options (the bug that used to abort mid-case), a numerical
+            // sub its input, a matching sub its selects.
+            var subComplete = true;
+            if (area) {
+              area.querySelectorAll(".ex-sub").forEach(function (b) {
+                var hasOpt = b.querySelectorAll(".ex-option").length;
+                var hasNum = b.querySelectorAll("input").length;
+                var hasSel = b.querySelectorAll("select").length;
+                if (!hasOpt && !hasNum && !hasSel) subComplete = false;
+              });
+            }
+            if (blocks === qs[qi].subs.length && sum === qs[qi].marks && subComplete) fmt.caseOk++;
+            else {
+              var hh = d.querySelector(".ex-q-head");
+              fmt.broken.push("#" + (qi + 1) + ":case blocks=" + blocks +
+                "/" + qs[qi].subs.length + " sum=" + sum + "/" + qs[qi].marks +
+                " complete=" + subComplete +
+                " head=" + (hh ? String(hh.innerText || "").replace(/\s+/g, " ").slice(0, 28) : "none"));
+            }
+          } else if (type === "matching") {
+            fmt.match++;
+            var sels = d.querySelectorAll("#examOptions select").length;
+            if (sels === qs[qi].left.length) fmt.matchOk++;
+            else fmt.broken.push("#" + (qi + 1) + ":match selects=" + sels + "/" + qs[qi].left.length);
+          } else if (type === "mcq" || type === "multi") {
+            fmt.mcq++;
+            var opts = d.querySelectorAll("#examOptions .ex-option").length;
+            if (opts === qs[qi].options.length) fmt.mcqOk++;
+            else fmt.broken.push("#" + (qi + 1) + ":" + type + " opts=" + opts + "/" + qs[qi].options.length);
+          } else if (type === "numerical") {
+            fmt.num++;
+            var nin = d.querySelectorAll("#examOptions input").length;
+            if (nin >= 1) fmt.numOk++;
+            else fmt.broken.push("#" + (qi + 1) + ":numerical inputs=0");
+          }
+        }
+
+        function walkQuestions(qi) {
+          if (qi >= qs.length) {
+            fmt.noHorizontalOverflow = fmt.overflow.length === 0;
+            fmt.allFormatsRendered = fmt.broken.length === 0;
+            r.fmt = fmt;
+            weval("examGotoQuestion(0)");
+            results[width] = r;
+            return done();
+          }
+          weval("examGotoQuestion(" + qi + ")");
+          // Wait for the card to actually say "Question <n> " — the only
+          // reliable signal that #view-root has been rebuilt for THIS
+          // index. innerText puts each header span on its OWN LINE, so the
+          // raw text is "Question 1\nSection A\n…" and a literal "Question 1 "
+          // would never match; normalise whitespace first. The trailing
+          // space still matters so "Question 1" can never match "Question 10".
+          var want = "Question " + (qi + 1) + " ";
+          until(function () {
+            var h = d.querySelector(".ex-q-head");
+            if (!h) return false;
+            return String(h.innerText || "").replace(/\s+/g, " ").trim().indexOf(want) === 0;
+          }, 80, 60, function (settled) {
+            if (!settled) {
+              var h = d.querySelector(".ex-q-head");
+              fmt.broken.push("#" + (qi + 1) + ":TIMEOUT head=" +
+                (h ? String(h.innerText || "").replace(/\s+/g, " ").slice(0, 40) : "none") +
+                " want=" + want);
+            }
+            measureOne(qi);
+            walkQuestions(qi + 1);
+          });
+        }
+        walkQuestions(0);
+        // NOTE: done() is fired by walkQuestions() itself when the walk
+        // actually finishes. Calling it here too returned each width while
+        // its walk was still navigating the iframe, so the next width's
+        // navigation landed mid-walk — which is exactly what made the
+        // multi-width numbers erratic.
+        }
+      });
+    });
+  }
+
+  function runAll(i) {
+    if (i >= TARGET_WIDTHS.length) {
+      log(JSON.stringify(results, null, 2));
+      window.__paletteWidthResults = results;
+      return;
+    }
+    log("running " + TARGET_WIDTHS[i] + "px …");
+    runWidth(TARGET_WIDTHS[i], function () { runAll(i + 1); });
+  }
+
+  document.querySelectorAll("#controls button[data-w]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var w = parseInt(b.getAttribute("data-w"), 10);
+      results = {};
+      runWidth(w, function () { log(JSON.stringify(results, null, 2)); window.__paletteWidthResults = results; });
+    });
+  });
+  document.getElementById("runAll").addEventListener("click", function () {
+    results = {};
+    runAll(0);
+  });
+
+  // expose for automation
+  window.__runAll = function (cb) { results = {}; runAll(0); if (cb) { var iv = setInterval(function () { if (window.__paletteWidthResults && Object.keys(window.__paletteWidthResults).length >= TARGET_WIDTHS.length) { clearInterval(iv); cb(window.__paletteWidthResults); } }, 300); } };
+})();
+</script>
+</body>
+</html>

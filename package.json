@@ -1,0 +1,15 @@
+{
+  "name": "accountancy-by-abhinash",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Accountancy By Abhinash \u2014 static site plus a small Netlify Functions backend for genuine Web Push reminders. Exam Mode, tutor and certificates run in the browser with localStorage.",
+  "dependencies": {
+    "@netlify/blobs": "^11.1.4",
+    "web-push": "^3.6.7"
+  },
+  "scripts": {
+    "test": "node tests/run-tests.js && node tests/calculator-tests.js && node tests/ai-tests.js && node tests/ai-intelligence-tests.js && node tests/solver-tests.js && node tests/revision-tests.js && node tests/tutor-regression-tests.js && node tests/exam-security-tests.js && node tests/exam-rules-tests.js && node tests/exam-store-tests.js && node tests/exam-records-client-tests.js && node tests/theory-upgrade-tests.js && node tests/guided-learning-tests.js && node tests/exam-monitor-tests.js && node tests/exam-hardening-tests.js && node tests/exam-search-tests.js && node tests/exam-bank-tests.js && node tests/important-questions-xp-tests.js && node tests/achievements-tests.js && node tests/seo-tests.js && node tests/ui-features-tests.js && node tests/class-system-tests.js && node tests/push-notification-tests.js && node tests/push-blobs-integration-tests.js && node tests/probe-tutor.js --quiet && node tests/probe-cycle.js --quiet",
+    "test:probe": "node tests/probe-tutor.js && node tests/probe-cycle.js",
+    "vapid:generate": "node tools/generate-vapid-keys.js"
+  }
+}

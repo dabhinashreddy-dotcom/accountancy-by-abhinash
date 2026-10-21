@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 250" role="img" aria-labelledby="tbTitle tbDesc" font-family="Segoe UI, system-ui, sans-serif">
+  <title id="tbTitle">Format of a Trial Balance</title>
+  <desc id="tbDesc">A two-column statement with Particulars in the middle and Debit and Credit amount columns. Four ledger balances are listed — Capital credit 60,000, Cash debit 18,000, Purchases debit 64,000 and Sales credit 22,000 — and both columns total the same figure of 82,000.</desc>
+  <rect width="720" height="250" fill="#F7F5EF"/>
+  <text x="360" y="30" fill="#14213D" font-size="18" font-weight="700" text-anchor="middle">TRIAL BALANCE as at 31st March</text>
+  <rect x="110" y="46" width="500" height="170" rx="10" fill="#FFFFFF" stroke="#14213D" stroke-width="2.5"/>
+  <line x1="110" y1="88" x2="610" y2="88" stroke="#14213D" stroke-width="2.5"/>
+  <line x1="380" y1="46" x2="380" y2="216" stroke="#14213D" stroke-width="1.5"/>
+  <line x1="500" y1="46" x2="500" y2="216" stroke="#14213D" stroke-width="1.5"/>
+  <g fill="#2B5FA6" font-size="14" font-weight="700">
+    <text x="245" y="72" text-anchor="middle">Particulars</text>
+    <text x="440" y="72" text-anchor="middle">Dr (₹)</text>
+    <text x="555" y="72" text-anchor="middle">Cr (₹)</text>
+  </g>
+  <g fill="#14213D" font-size="13.5">
+    <text x="130" y="115">Capital</text><text x="470" y="115" text-anchor="end">—</text><text x="585" y="115" text-anchor="end">60,000</text>
+    <text x="130" y="143">Cash</text><text x="470" y="143" text-anchor="end">18,000</text><text x="585" y="143" text-anchor="end">—</text>
+    <text x="130" y="171">Purchases</text><text x="470" y="171" text-anchor="end">64,000</text><text x="585" y="171" text-anchor="end">—</text>
+    <text x="130" y="199">Sales</text><text x="470" y="199" text-anchor="end">—</text><text x="585" y="199" text-anchor="end">22,000</text>
+  </g>
+  <line x1="110" y1="206" x2="610" y2="206" stroke="#14213D" stroke-width="2"/>
+  <text x="130" y="228" fill="#14213D" font-size="13.5" font-weight="700">Total</text>
+  <text x="470" y="228" fill="#14213D" font-size="13.5" font-weight="700" text-anchor="end">82,000</text>
+  <text x="585" y="228" fill="#14213D" font-size="13.5" font-weight="700" text-anchor="end">82,000</text>
+</svg>

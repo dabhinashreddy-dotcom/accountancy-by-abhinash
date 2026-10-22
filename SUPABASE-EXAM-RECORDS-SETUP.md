@@ -40,6 +40,8 @@ Key guarantees, enforced **in the database** (not in JavaScript):
 | Database password | Set at project creation; stored only in the Supabase dashboard. Not in the repository. |
 | Migration status | **Applied and verified** — `exam_records` (23 columns) and `certificate_counters` exist with RLS enabled; `submit_exam_record` and `record_terminated_attempt` exist as `SECURITY DEFINER`; helper functions `norm_text`, `next_certificate_id` and the `exam_records_guard` trigger exist. |
 | End-to-end test (2026-10-21) | **Passed against the live project**: SQL-level submit returned `ACC-OCT2026-0001` (a second identical call returned the same id with `already_registered = true`), a terminated attempt stored with `certificate_id = NULL`, and the real website's own `ExamRecords.syncSubmitted()` got HTTP 200 → status `synced` → server certificate `ACC-OCT2026-0002`. All test rows were deleted and the monthly counter reset to 0 afterwards, so the first real attempt receives `ACC-OCT2026-0001`. |
+| Production state (2026-10-21 … 22) | Real student attempts since the release: `0001` (D Abhinash Reddy), one terminated attempt (`certificate_id = NULL` — correct), `0002`, `0003`, `0004` (Sunita Reddy). |
+| Certificate-ID verification (2026-10-22, v95) | **Passed on the deployed site against the live project**: a real 50-question submission on `accountancybyabhinash.netlify.app` issued the provisional `ACC-OCT2026-0001` locally; the database allocated **`ACC-OCT2026-0005`**; the certificate was re-keyed and the rendered sheet (`cert-id-text`), hero line, device register, `rec.certId` and the result pointer all showed exactly `ACC-OCT2026-0005` — the same id `exam_records` stores for that attempt, read directly from the database. The registration note ("Registered … `ACC-OCT2026-0005` is the registered certificate ID") was verified visible after the first-paint fix. The test row was then deleted, the counter restored to `4` (the highest remaining suffix — **never reset below an allocated id**), the guard trigger re-enabled (`tgenabled = 'O'`) and the test browser's storage cleared. Production state afterwards: 5 rows, 4 certificates, counter `OCT2026 → 4`. |
 
 The browser talks to the project with **only** the publishable key, which Supabase documents as safe to embed in client code (it is also in the already-deployed website's JavaScript by necessity). Even if someone extracts it, RLS still blocks all direct table access; they can only call the two validation-heavy write RPCs.
 
@@ -64,11 +66,11 @@ Only these files were touched — every existing feature (exam engine, timer, gr
 
 | File | Change |
 |---|---|
-| `app.js` | Two additions inside the exam store region: `examAdoptServerCertificateId()` (re-keys the earned certificate to the registered id — guarded, idempotent, never touches non-submissions) and `examAdoptStoredServerIds()` (the boot pass), plus **one** global `ExamRecords.onChange` subscription wiring them to real sync events. |
-| `certificate.js` | The certificate view shows an honest registration note (pending / queued / failed / registered) for monitored attempts — view chrome only; the sheet and every export of it (PDF/PNG/print/share) are unchanged. |
+| `app.js` | Two additions inside the exam store region: `examAdoptServerCertificateId()` (re-keys the earned certificate to the registered id — guarded, idempotent, never touches non-submissions) and `examAdoptStoredServerIds()` (the boot pass), plus **one** global `ExamRecords.onChange` subscription wiring them to real sync events. v76: the result screen's sync line now paints immediately after it attaches, so a reopened, already-synced result always shows its state instead of an empty line. |
+| `certificate.js` | The certificate view shows an honest registration note (pending / queued / failed / registered) for monitored attempts — view chrome only; the sheet and every export of it (PDF/PNG/print/share) are unchanged. v18: the note attaches *before* its first paint, so it is visible even when the status is already final (reopening a registered certificate). |
 | `exam-records-supabase.js` | New read-only `statusAll()` accessor (no secrets — the same status data the device already stores in `localStorage`). |
-| `index.html` | Version bumps: `certificate.js?v=17`, `exam-records-supabase.js?v=2`, `app.js?v=75`. |
-| `sw.js` | `CACHE_NAME` bumped `v57 → v58`. |
+| `index.html` | Version bumps (all 43 pages): `certificate.js?v=18`, `exam-records-supabase.js?v=2`, `app.js?v=76`. |
+| `sw.js` | `CACHE_NAME` bumped `v57 → v59`. |
 | `tests/certificate-id-authority-tests.js` | **NEW** — 72 assertions reproducing the bug against the real code (Tests A–F: database id displayed, local id never wins, async timing, refresh/reopen, repeated submission, failed registration — no false claims). |
 | `package.json` | New suite added to `npm test`. |
 
@@ -163,6 +165,7 @@ The certificate id the student earns, views, downloads, prints and finds in hist
 
 ## 8. Limits, knobs and troubleshooting
 
+* **Deploying an update (important):** the live Netlify site is **not** connected to the GitHub repository — a git push alone does *not* deploy it (the deploy history shows "Build from drop deployment" for every release). Deploy by uploading the site ZIP through Netlify Drop (`app.netlify.com/sites/accountancybyabhinash/deploys` → drag & drop), or via the Deploys API: `POST https://api.netlify.com/api/v1/sites/{site_id}/deploys` with `Content-Type: application/zip`, the ZIP as the raw body, and a personal access token (User settings → Applications → New access token). Keep the GitHub repo in sync (commit + push) as the source history — but always finish with the ZIP upload, or the live site keeps the previous version.
 * **Master switch:** in `exam-records-supabase.js`, set `CFG.enabled = false` — every sync becomes a no-op and the sync lines disappear (the old UI returns). No redeploy of anything else is needed.
 * **“Queued” forever:** the queue lives in `localStorage` under `aba_exam_records_queue_v1` and retries on page load, on reconnect (`online` event), on tab focus, and on a 15 s → 10 min backoff while the page is open. A device that never comes back online keeps its local result — that is by design (local-first).
 * **“Failed” status:** the server refused that payload (e.g. `INVALID_CLASS_NAME`) — it is *not* retried, because retrying identical data can never succeed. The reason is shown in the line and stored in `aba_exam_records_status_v1`.

@@ -17360,8 +17360,14 @@ function examRecordsSyncLine(attemptId) {
     }
     if (typeof icons === "function") icons();
   };
-  paint();
   if (typeof ExamRecords.onChange === "function") unsubscribe = ExamRecords.onChange((id) => { if (id === attemptId) paint(); });
+  /* v95 — the caller appends `line` synchronously right after this
+     function returns, so paint once it is actually in the document:
+     the detach guard inside paint() makes an immediate call a no-op,
+     which would leave the line blank forever whenever the status is
+     already final when the screen opens (a reopened result, a queued
+     retry that finished earlier). */
+  if (typeof setTimeout === "function") setTimeout(paint, 0);
   return line;
 }
 

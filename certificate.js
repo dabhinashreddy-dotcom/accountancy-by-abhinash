@@ -573,9 +573,14 @@ function renderCertificateFullView(root, cert){
       }
       if (icons) icons();
     };
+    /* The node must be in the document BEFORE the first paint:
+       paintNote()'s detach guard returns early on a node that is not
+       yet attached (the same guard the sync line uses), which would
+       leave this note blank forever whenever the status is already
+       final — e.g. reopening a registered certificate. */
+    root.appendChild(note);
     paintNote();
     if (typeof ExamRecords.onChange === "function") noteUnsub = ExamRecords.onChange((id) => { if (id === c.attemptId) paintNote(); });
-    root.appendChild(note);
   }
   const scaleWrap = el("div", "cert-sheet-scale-wrap");
   scaleWrap.style.cssText = "width:100%;display:flex;justify-content:center;";

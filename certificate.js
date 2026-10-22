@@ -1,8 +1,13 @@
 /* ============================================================
    CERTIFICATE SYSTEM — Accountancy by Abhinash
-   Certificates are issued and numbered LOCALLY by the browser
-   (single per-device sequence, ACC-MONTHYYYY-NNNN) from the
-   examination store in app.js. This file is the presentation
+   A certificate is first issued LOCALLY by the browser (per-device
+   sequence, ACC-MONTHYYYY-NNNN) from the examination store in app.js
+   as a PROVISIONAL number, so the result works offline. The registered
+   certificate id is allocated by the database (Supabase) when the
+   attempt syncs; app.js then ADOPTS that exact id into the certificate
+   (examAdoptServerCertificateId) — so once registration is confirmed,
+   every surface here (view, register, PDF, PNG, print, share) shows
+   exactly the id stored in Supabase. This file is the presentation
    half: it renders a certificate record, exports it to PNG/PDF
    and prints it. Every certificate surface first passes the
    certEligible() gate: a disqualified attempt can never render,
@@ -544,6 +549,34 @@ function renderCertificateFullView(root, cert){
     '<button class="chip" id="certPrintBtn"><i data-lucide="printer"></i> Print</button>'+
     '<button class="chip" id="certShareBtn"><i data-lucide="share-2"></i> Share</button>';
   root.appendChild(actions);
+  /* v95 — honest registration state for THIS certificate. Chrome only: the sheet itself, and every export of it (PDF/PNG/print), is untouched. While the id has NOT been confirmed by the server the note says "pending" — nothing ever claims "registered" early; the moment the registered id lands it is adopted into the certificate (examAdoptServerCertificateId in app.js) and this note flips to "registered". */
+  if (typeof ExamRecords !== "undefined" && ExamRecords.configured && ExamRecords.configured() && c.attemptId) {
+    const note = el("div", "");
+    note.style.cssText = "margin:-8px 0 16px;font-size:0.8rem;line-height:1.55;display:flex;align-items:center;gap:6px;color:var(--ink-faint);";
+    let noteUnsub = null;
+    const paintNote = () => {
+      if (typeof document !== "undefined" && document.body && !document.contains(note)) {
+        if (noteUnsub) { noteUnsub(); noteUnsub = null; }
+        return;
+      }
+      const s = ExamRecords.statusFor(c.attemptId);
+      if (s && s.state === "synced" && s.certificateId === c.id) {
+        note.innerHTML = '<i data-lucide="cloud-check" style="width:13px;height:13px;"></i> Registered in Abhinash&rsquo;s examination records — <b>' + escapeHtml(c.id) + '</b> is the registered certificate ID.';
+      } else if (s && s.state === "synced") {
+        note.innerHTML = '<i data-lucide="cloud-upload" style="width:13px;height:13px;"></i> Registered in Abhinash&rsquo;s examination records — reopening this certificate shows the registered certificate ID.';
+      } else if (s && s.state === "queued") {
+        note.innerHTML = '<i data-lucide="cloud-off" style="width:13px;height:13px;"></i> Registration in Abhinash&rsquo;s records is queued and will retry — the registered certificate ID replaces this one once confirmed.';
+      } else if (s && s.state === "failed") {
+        note.innerHTML = '<i data-lucide="cloud-alert" style="width:13px;height:13px;"></i> Registration in Abhinash&rsquo;s records did not succeed — this ID is not yet registered.';
+      } else {
+        note.innerHTML = '<i data-lucide="cloud-upload" style="width:13px;height:13px;"></i> Saving this certificate to Abhinash&rsquo;s examination records…';
+      }
+      if (icons) icons();
+    };
+    paintNote();
+    if (typeof ExamRecords.onChange === "function") noteUnsub = ExamRecords.onChange((id) => { if (id === c.attemptId) paintNote(); });
+    root.appendChild(note);
+  }
   const scaleWrap = el("div", "cert-sheet-scale-wrap");
   scaleWrap.style.cssText = "width:100%;display:flex;justify-content:center;";
   const inner = el("div", "");

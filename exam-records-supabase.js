@@ -32,10 +32,13 @@
        saved;
      * offline attempts are queued in localStorage and retried
        automatically (page load, reconnect, periodic backoff);
-     * the certificate id shown to the student keeps coming from the
-       existing local issuer (ExamRules.certIdForDate); the server
-       independently allocates its own id for the same attempt —
-       both share the same attempt_id, which is the join key.
+     * the certificate id ALLOCATED BY THE SERVER is authoritative:
+       once the server confirms the row, the registered
+       certificate_id is adopted into the earned certificate by
+       app.js (examAdoptServerCertificateId) - until then the
+       locally issued number is shown only as provisional, with an
+       explicit 'registration pending' state; attempt_id joins the
+       certificate to its record either way.
    ============================================================ */
 (function (root) {
   "use strict";
@@ -102,6 +105,13 @@
   function statusFor(attemptId) {
     var map = readJSON(STATUS_KEY, {});
     return map[attemptId] || null;
+  }
+  /* v95 — the whole persisted status map (attempt id → entry). Used by
+     app.js at boot to adopt registered certificate ids into certificates
+     that were issued before a refresh. Contains only what the device
+     already stored locally; no secrets, no other device's data. */
+  function statusAll() {
+    return readJSON(STATUS_KEY, {});
   }
 
   /* ---- the pending queue -------------------------------------- */
@@ -403,6 +413,7 @@
     drainQueue: drainQueue,
     pendingCount: pendingCount,
     statusFor: statusFor,
+    statusAll: statusAll,
     /* onChange(fn) subscribes to status changes for the honest UI
        lines; it returns an unsubscribe function. */
     onChange: function (fn) {

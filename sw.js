@@ -1,6 +1,6 @@
 // Accountancy By Abhinash — service worker
 // Bump CACHE_NAME whenever a deploy should force-refresh cached app files.
-const CACHE_NAME = "aba-cache-v57";
+const CACHE_NAME = "aba-cache-v58";
 const APP_SHELL = [
   "./",
   "./index.html",

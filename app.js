@@ -13778,6 +13778,99 @@ function examIssueCertificate(rec, evaluated, t) {
   return cert;
 }
 
+/* ---- v95: the DATABASE certificate id is authoritative ---------- */
+/* Supabase allocates the registered certificate id from its atomic
+   monthly counter (next_certificate_id). The local issuer above can
+   only produce a per-device provisional number, which diverges from
+   the database as soon as two devices (or a reinstall, or a history
+   restore) issue certificates in the same month. So the registered
+   id ADOPTS the local certificate: the record is re-keyed everywhere
+   a certificate id is shown or looked up — the exam store, the
+   device certificate register, the open certificate view, the
+   result screen, history, verification, PDF/print/download (they
+   all render the record they are handed).
+
+   Contract:
+     * idempotent — adopting the same id twice changes nothing;
+     * never destructive — it refuses a slot owned by another
+       attempt, and with no/wrong server id nothing moves;
+     * never touches non-submitted attempts (a terminated attempt
+       has no certificate id at all, here or in the database);
+     * honest — while an id has NOT been confirmed the surfaces
+       keep showing the provisional id with an explicit
+       "registration pending" state (see the sync line and the
+       certificate view note); nothing ever claims "registered"
+       before the server said so.
+   Returns true when a certificate was re-keyed (or already matched). */
+function examAdoptServerCertificateId(attemptId, serverCertId) {
+  try {
+    if (!attemptId || typeof serverCertId !== "string") return false;
+    const id = serverCertId.trim().toUpperCase();
+    if (!id || typeof ExamRules === "undefined" || !ExamRules.isValidCertId(id)) return false;
+    const store = examStoreLoad();
+    const rec = (store.attempts && store.attempts[attemptId]) || null;
+    if (!rec || rec.status !== "submitted") return false;        // never re-key anything but a submission
+    let localId = rec.certId || null;
+    let cert = (localId && store.certs && store.certs[localId]) || null;
+    if (!cert) {                                                 // find the record by attempt (legacy shapes)
+      const keys = Object.keys(store.certs || {});
+      for (let i = 0; i < keys.length; i++) {
+        const c = store.certs[keys[i]];
+        if (c && c.attemptId === attemptId) { cert = c; localId = keys[i]; break; }
+      }
+    }
+    if (!cert) return false;                                     // no local certificate to correct
+    if (localId === id) {                                        // already the registered id
+      if (rec.certId !== id) { rec.certId = id; examStoreSave(); }
+      return true;
+    }
+    const slot = store.certs[id];
+    if (slot && slot.attemptId !== attemptId) return false;      // never steal another attempt's slot
+    if (localId) delete store.certs[localId];
+    cert.id = id;
+    store.certs[id] = cert;
+    rec.certId = id;
+    examStoreSave();
+    /* the on-device certificate register (certificate.js): drop the
+       stale-id entry for this attempt and cache under the new id */
+    if (typeof certLoadAll === "function" && typeof certSaveAll === "function") {
+      certSaveAll(certLoadAll().filter((c) => !(c && c.attemptId === attemptId && c.id !== id)));
+    }
+    if (typeof certCacheRecord === "function") certCacheRecord(cert);
+    /* a certificate view already open on the old id must keep
+       pointing at the same record after the re-key */
+    let viewRefresh = false;
+    try {
+      if (typeof certOpenCertId !== "undefined" && certOpenCertId === localId) { certOpenCertId = id; viewRefresh = true; }
+    } catch (e2) { /* register not loaded — nothing to keep in sync */ }
+    /* repaint any live screen that currently shows this attempt */
+    try {
+      if (typeof examState !== "undefined" && examState && examState.attemptId === attemptId) {
+        examState.certId = id;
+        const route = (typeof currentRouteName === "function") ? currentRouteName() : "";
+        if ((typeof EXAM_ROUTE !== "undefined" && route === EXAM_ROUTE) || route === "certificate-view") renderRoute();
+      } else if (viewRefresh && typeof currentRouteName === "function" && currentRouteName() === "certificate-view") {
+        renderRoute();
+      }
+    } catch (e2) { /* UI not in this context (tests) — store is still corrected */ }
+    return true;
+  } catch (e) { return false; }
+}
+
+/* v95 — one idempotent pass over the persisted sync statuses, so a
+   certificate registered BEFORE this page load (or by a queued retry
+   that succeeded earlier) adopts its registered id with no new   network call. Runs at boot and after every sync status change. */
+function examAdoptStoredServerIds() {
+  try {
+    if (typeof ExamRecords === "undefined" || !ExamRecords.statusAll) return;
+    const map = ExamRecords.statusAll() || {};
+    Object.keys(map).forEach((attemptId) => {
+      const entry = map[attemptId];
+      if (entry && entry.state === "synced" && entry.certificateId) examAdoptServerCertificateId(attemptId, entry.certificateId);
+    });
+  } catch (e) { /* adoption is best-effort; the local certificate stays */ }
+}
+
 /* ---- the router: same action names and shapes as the old API -- */
 async function examApiLocal(action, payload, candidateId) {
   const t = Date.now();
@@ -17270,6 +17363,16 @@ function examRecordsSyncLine(attemptId) {
   paint();
   if (typeof ExamRecords.onChange === "function") unsubscribe = ExamRecords.onChange((id) => { if (id === attemptId) paint(); });
   return line;
+}
+
+/* v95 — one global subscription: whenever the records module reports an attempt as SYNCED with a registered certificate id, that exact id is adopted by the earned certificate (examAdoptServerCertificateId). One listener — instead of one per screen — means the correction also fires for a queued upload that succeeds minutes later, from the queue drain, on any screen; the adoption itself is idempotent and repaints whichever certificate surface is currently visible. The boot pass adopts certificates registered before this page load. */
+if (typeof ExamRecords !== "undefined" && typeof ExamRecords.onChange === "function") {
+  ExamRecords.onChange((attemptId, entry) => {
+    try {
+      if (entry && entry.state === "synced" && entry.certificateId) examAdoptServerCertificateId(attemptId, entry.certificateId);
+    } catch (e) { /* adoption is best-effort; the local certificate stays */ }
+  });
+  examAdoptStoredServerIds();
 }
 
 function renderExamResults(root) {

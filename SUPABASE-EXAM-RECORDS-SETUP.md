@@ -60,6 +60,18 @@ Only these files were touched — every existing feature (exam engine, timer, gr
 | `package.json` | New test suite added to `npm test`. |
 | `SUPABASE-EXAM-RECORDS-SETUP.md` | This document. |
 
+**v95 — certificate-ID authority fix (the registered id is now THE certificate id):**
+
+| File | Change |
+|---|---|
+| `app.js` | Two additions inside the exam store region: `examAdoptServerCertificateId()` (re-keys the earned certificate to the registered id — guarded, idempotent, never touches non-submissions) and `examAdoptStoredServerIds()` (the boot pass), plus **one** global `ExamRecords.onChange` subscription wiring them to real sync events. |
+| `certificate.js` | The certificate view shows an honest registration note (pending / queued / failed / registered) for monitored attempts — view chrome only; the sheet and every export of it (PDF/PNG/print/share) are unchanged. |
+| `exam-records-supabase.js` | New read-only `statusAll()` accessor (no secrets — the same status data the device already stores in `localStorage`). |
+| `index.html` | Version bumps: `certificate.js?v=17`, `exam-records-supabase.js?v=2`, `app.js?v=75`. |
+| `sw.js` | `CACHE_NAME` bumped `v57 → v58`. |
+| `tests/certificate-id-authority-tests.js` | **NEW** — 72 assertions reproducing the bug against the real code (Tests A–F: database id displayed, local id never wins, async timing, refresh/reopen, repeated submission, failed registration — no false claims). |
+| `package.json` | New suite added to `npm test`. |
+
 ---
 
 ## 4. The migration (reproducible)
@@ -132,16 +144,20 @@ The UI never claims a save that did not happen:
 
 ---
 
-## 7. Certificate ids: two issuers, one attempt id
+## 7. Certificate ids: the DATABASE id is the certificate id (v95)
 
-* The **student-facing** certificate keeps being issued by the existing local issuer (`ExamRules.certIdForDate` → `store.certs`), so nothing about the current certificate flow changed.
-* The **server** independently allocates its own id from `certificate_counters` for the same attempt (the database, not the browser, must own a *globally unique* sequence).
-* Both ids belong to the same attempt — `attempt_id` is the join key, and the sync line shows the **server's** id so Abhinash's records and what a student sees can always be reconciled from the dashboard:
+The certificate id the student earns, views, downloads, prints and finds in history is **the exact `certificate_id` Supabase allocated** — there is no second, browser-side numbering any more.
+
+* **Provisional → registered.** At submission the browser still issues a provisional id instantly (`ExamRules.certIdForDate` → `store.certs`) so the result and certificate work offline. The moment the server confirms the row, `examAdoptServerCertificateId()` (app.js) **re-keys that same certificate record** to the registered id in every surface: the exam store, the device certificate register (`abhinash_certificates_v1`), the certificate view, the result screen, history, verification lookup, and the sheet that PDF/PNG/print are rendered from. Marks, name, attempt id and everything else stay untouched — only the id follows the database.
+* **One subscription + one boot pass.** A single `ExamRecords.onChange` listener adopts the id whenever an attempt becomes `synced` — including a queued upload that succeeds minutes later, on any screen — and a boot pass (`examAdoptStoredServerIds()`) adopts ids registered before this page load (page refresh, reopen). Both call the same idempotent function.
+* **Guarded adoption (never destructive):** it refuses malformed ids, refuses a slot owned by another attempt, never touches non-submitted attempts (a terminated attempt has no id, here or in the database), and adopting the same id twice changes nothing.
+* **Honest while pending:** until the server confirms, the provisional id is shown *as provisional* — the sync line and the certificate view say "registration pending / queued / failed" and nothing ever claims "registered" early. A failed upload keeps the local certificate fully usable and retries safely; it never invents or displays a fake registered id.
+* **Reconciliation** (unchanged): `attempt_id` joins the certificate to its row:
   ```sql
-  -- find the server row for any locally issued certificate's attempt
+  -- find the server row for any certificate's attempt
   select * from exam_records where attempt_id = '<attempt id from the site>';
   ```
-  In normal single-device use the two sequences start together and stay identical (`ACC-OCT2026-0001`, `-0002`, …); they can only drift if the local counter is reset (cleared site data) — the server sequence never restarts.
+* **Historical certificates:** already-registered attempts adopt their stored id on the device's next page load (from the persisted status map, no network needed); certificates whose attempts never synced keep their local id and an honest "pending" state. Ids are never regenerated — the server sequence never restarts, and the counter is never reset below an allocated id.
 
 ---
 
